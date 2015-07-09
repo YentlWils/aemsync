@@ -24,7 +24,8 @@
 		"minimist": "~0.2.0",
 		"graceful-fs": "~3.0.4",
 		"colors": "~1.0.3",
-		"chokidar": "~1.0.0-rc3"
+		"chokidar": "~1.0.0-rc3",
+		"pixl-xml": "~1.0.3"
 	},
 	"bin": {
 		"aemsync": "./bin/aemsync"
