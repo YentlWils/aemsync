@@ -1,6 +1,6 @@
 /*jslint node: true, multistr: true*/
 "use strict";
-test
+
 // -----------------------------------------------------------------------------
 // VARIABLES
 // -----------------------------------------------------------------------------
@@ -17,6 +17,7 @@ var minimist = require("minimist");
 var archiver = require("archiver"); // TODO: consider using zip-stream for less dependencies.
 var FormData = require("form-data");
 var chokidar = require("chokidar");
+var XML = require('pixl-xml');
 var util = require("util");
 require('colors');
 
@@ -53,6 +54,11 @@ var queue = [];
 var debugMode = false;
 var maybeeExit = false;
 var lock = 0;
+var versionNumer = "";
+
+// Release folders
+var sourceDir = "";
+var targetDir = "";
 
 // -----------------------------------------------------------------------------
 // HELPERS
@@ -307,12 +313,12 @@ function Syncer(targets, queue, interval) {
 		console.log("ADD: " + item.substring(item.indexOf("jcr_root")).yellow);
 		var filterPath = getFilterPath(item);
 		var dirName = path.dirname(filterPath);
-		pack.filters += util.format(FILTER_CHILDREN, dirName, dirName,
-				filterPath, filterPath);
+		pack.filters += util.format(FILTER_CHILDREN, dirName.replace(sourceDir,targetDir), dirName.replace(sourceDir,targetDir),
+				filterPath.replace(sourceDir,targetDir), filterPath.replace(sourceDir,targetDir));
 
 		// Add file.
 		if (fs.lstatSync(item).isFile()) {
-			pack.zip.addLocalFile(item, getZipPath(item));
+			pack.zip.addLocalFile(item, getZipPath(item).replace(sourceDir,targetDir));
 			return;
 		}
 
@@ -511,6 +517,41 @@ function Watcher(pathToWatch, queue, callback) {
 }
 
 // -----------------------------------------------------------------------------
+// POM file searcher
+// -----------------------------------------------------------------------------
+function findPOM(workingDir){
+	var POMfileFound = false;
+	var pom = "/pom.xml";
+	while(!POMfileFound) {
+		var file = workingDir + pom;
+		if(fs.existsSync(file)){
+			if (fs.statSync(file).isFile()) {
+				POMfileFound = true;
+			}else{
+				pom = "/.." + pom;
+			}
+		}
+		else{
+			pom = "/.." + pom;
+		}
+	}
+	
+	return workingDir + pom;	
+}
+
+// -----------------------------------------------------------------------------
+// Set the version of the maven release
+// -----------------------------------------------------------------------------
+function setVersion(workingDir){
+	var pomfile = findPOM(workingDir);
+	
+	var pomXML = fs.readFileSync(pomfile, 'utf8');
+	var pomObject = XML.parse(pomXML);
+	
+	versionNumer = pomObject.version;
+}
+
+// -----------------------------------------------------------------------------
 // MAIN
 // -----------------------------------------------------------------------------
 
@@ -531,6 +572,16 @@ function main() {
 	var workingDir = args.w ? cleanPath(args.w) :
 		cleanPath(DEFAULT_WORKING_DIR);
 	var syncerInterval = args.i ? args.i : DEFAULT_SYNCER_INTERVAL;
+	
+	if(args.v && args.c && args.m){
+		setVersion(workingDir);
+		sourceDir = args.c;
+		targetDir = args.m;
+		targetDir = targetDir.replace('#', versionNumer);
+	}
+	
+	ZIP_NAME = args.z ? "/" + args.z + ".zip" : ZIP_NAME;
+		
 
 	// Show info.
 	console.log(util.format(MSG_INIT, workingDir.yellow, targets.yellow,
